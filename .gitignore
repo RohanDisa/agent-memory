@@ -1,0 +1,12 @@
+/bin/
+/dist/
+/coverage.out
+/coverage.html
+/coverage
+*.exe
+*.test
+*.wal
+/data/
+.idea/
+.vscode/
+.DS_Store

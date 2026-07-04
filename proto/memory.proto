@@ -1,0 +1,147 @@
+syntax = "proto3";
+
+package memory;
+
+option go_package = "github.com/rdisa/agent-memory-store/proto/memorypb";
+
+// Canonical message schema for the client API and inter-node replication.
+// The in-process cluster (tests) and HTTP/JSON gateway both speak these messages.
+// A gRPC listener is optional; handlers are shared.
+
+enum NamespacePolicy {
+  LWW = 0;
+  CRDT_LWWREG = 1;
+  CRDT_ORSET = 2;
+}
+
+message Version {
+  uint64 lamport = 1;
+  string node_id = 2;
+}
+
+message Value {
+  bytes data = 1;
+  Version version = 2;
+  NamespacePolicy policy = 3;
+  bool tombstone = 4;
+  bytes crdt_state = 5;
+}
+
+message WriteRequest {
+  string key = 1;
+  bytes data = 2;
+  NamespacePolicy policy = 3;
+  int32 w = 4;
+  int64 client_ts = 5; // advisory only; never used for ordering
+  string orset_op = 6; // "add" | "remove"
+  string orset_elem = 7;
+}
+
+message WriteResponse {
+  bool ok = 1;
+  Version version = 2;
+  int32 acks_received = 3;
+  string error = 4;
+}
+
+message ReadRequest {
+  string key = 1;
+  int32 r = 2;
+}
+
+message ReadResponse {
+  Value value = 1;
+  Version version = 2;
+  int32 replicas_responded = 3;
+  bool replicas_agreed = 4;
+  bool repaired = 5;
+  string error = 6;
+  bool found = 7;
+}
+
+message HistoryRequest {
+  string key = 1;
+}
+
+message HistoryEntry {
+  uint64 seq = 1;
+  string key = 2;
+  Value value = 3;
+}
+
+message HistoryResponse {
+  repeated HistoryEntry entries = 1;
+}
+
+message FactRequest {
+  string entity = 1;
+  string attribute = 2;
+  bytes value = 3;
+  NamespacePolicy policy = 4;
+  int32 w = 5;
+}
+
+message FactGetRequest {
+  string entity = 1;
+  string attribute = 2;
+  int32 r = 3;
+}
+
+message EntityRequest {
+  string entity = 1;
+  int32 r = 2;
+}
+
+message FactsResponse {
+  map<string, Value> facts = 1;
+}
+
+message TagRequest {
+  string entity = 1;
+  string tag = 2;
+  int32 w = 3;
+}
+
+// Inter-node replication.
+message ReplicateWriteRequest {
+  string key = 1;
+  Value value = 2;
+  string from_node = 3;
+}
+
+message ReplicateWriteResponse {
+  bool ok = 1;
+  Version applied_version = 2;
+}
+
+message ReplicateReadRequest {
+  string key = 1;
+  string from_node = 2;
+}
+
+message DigestRequest {
+  string from_node = 1;
+}
+
+message DigestResponse {
+  map<string, Value> values = 1;
+}
+
+service Memory {
+  rpc Write(WriteRequest) returns (WriteResponse);
+  rpc Read(ReadRequest) returns (ReadResponse);
+  rpc Delete(WriteRequest) returns (WriteResponse);
+  rpc History(HistoryRequest) returns (HistoryResponse);
+  rpc PutFact(FactRequest) returns (WriteResponse);
+  rpc GetFact(FactGetRequest) returns (ReadResponse);
+  rpc GetFacts(EntityRequest) returns (FactsResponse);
+  rpc AddTag(TagRequest) returns (WriteResponse);
+  rpc RemoveTag(TagRequest) returns (WriteResponse);
+}
+
+service Replica {
+  rpc ReplicateWrite(ReplicateWriteRequest) returns (ReplicateWriteResponse);
+  rpc ReplicateRead(ReplicateReadRequest) returns (ReadResponse);
+  rpc GetDigest(DigestRequest) returns (DigestResponse);
+  rpc HintedReplay(ReplicateWriteRequest) returns (ReplicateWriteResponse);
+}
