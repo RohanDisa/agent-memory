@@ -276,29 +276,6 @@ The race detector runs in CI on Linux; it needs CGO and a 64-bit compiler.
 | Tests | `go test` + in-process harness; Docker for e2e |
 | Lint | golangci-lint |
 
-Wire format is HTTP/JSON rather than generated gRPC so the project builds
-with the Go stdlib, the fault injector can sit under a real `Transport`, and
-`curl` is a first-class client. Messages are the proto types.
-
----
-
-## Interview answers we are willing to give
-
-**"How do you handle split-brain?"** We don't prevent it. Both sides accept
-writes their W allows. After heal, LWW or CRDT merge. LWW drops the loser.
-
-**"Why not wall-clock?"** Skew. A delayed packet with a later NTP timestamp
-would overwrite a causally newer value. Lamport+node_id is a total order
-that respects "I witnessed your timestamp."
-
-**"Is this strongly consistent?"** Only per key, and only when the client
-chooses `R+W>N`. No transactions, no cross-key atomicity.
-
-**"Exactly-once?"** No. At-least-once with idempotent apply.
-
-**"Is this Raft?"** No. Leaderless quorum. Different project.
-
----
 
 ## Layout
 
